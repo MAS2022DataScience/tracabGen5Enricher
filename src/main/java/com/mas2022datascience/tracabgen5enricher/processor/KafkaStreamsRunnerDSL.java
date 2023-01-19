@@ -1,12 +1,9 @@
 package com.mas2022datascience.tracabgen5enricher.processor;
 
-import com.mas2022datascience.avro.v1.Frame;
 import com.mas2022datascience.avro.v1.Object;
 import com.mas2022datascience.avro.v1.TracabGen5TF01;
+import com.mas2022datascience.util.Time;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -150,7 +147,7 @@ public class KafkaStreamsRunnerDSL {
   private static double getTimeDifference(String actualUtc, String oldUtc) {
     // represents the divisor that is needed to get s. Ex. ms to s means 1000 as 1000ms is 1s
     int timeUnitDivisor = 1000;
-    return (utcString2epocMs(actualUtc) - utcString2epocMs(oldUtc))/timeUnitDivisor;
+    return (Time.utcString2epocMs(actualUtc) - Time.utcString2epocMs(oldUtc))/timeUnitDivisor;
   }
 
   /**
@@ -213,22 +210,6 @@ public class KafkaStreamsRunnerDSL {
       double velocityDifference = actualObject.getVelocity() - oldObject.getVelocity();
       return Optional.of(velocityDifference / timeDifference);
     }
-  }
-
-  /**
-   * Converts the utc string of type "yyyy-MM-dd'T'HH:mm:ss.SSS" to epoc time in milliseconds.
-   * @param utcString of type String of format 'yyyy-MM-dd'T'HH:mm:ss.SSS'
-   * @return epoc time in milliseconds
-   */
-  private static double utcString2epocMs(String utcString) {
-    if (utcString.length() == 17) {
-      utcString = utcString.substring(0, 16)+":00.000Z";
-    }
-
-    DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-        .withZone(ZoneOffset.UTC);
-
-    return Instant.from(fmt.parse(utcString)).toEpochMilli();
   }
 
 }
