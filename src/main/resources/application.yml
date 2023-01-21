@@ -15,7 +15,7 @@ maxima:
 
 spring:
   application:
-    name: "tracabgen5-enrich"
+    name: "tracabgen5-enricher"
 
   kafka:
     bootstrap.servers:
