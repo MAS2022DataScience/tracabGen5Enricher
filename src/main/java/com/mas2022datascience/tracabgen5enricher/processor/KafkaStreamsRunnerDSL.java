@@ -144,9 +144,9 @@ public class KafkaStreamsRunnerDSL {
    * @param oldUtc UTC time as a String
    * @return time difference in seconds
    */
-  private static double getTimeDifference(String actualUtc, String oldUtc) {
+  private static float getTimeDifference(String actualUtc, String oldUtc) {
     // represents the divisor that is needed to get s. Ex. ms to s means 1000 as 1000ms is 1s
-    int timeUnitDivisor = 1000;
+    float timeUnitDivisor = 1000;
     return (Time.utcString2epocMs(actualUtc) - Time.utcString2epocMs(oldUtc))/timeUnitDivisor;
   }
 
