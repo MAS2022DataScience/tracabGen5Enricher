@@ -111,20 +111,20 @@ public class KafkaStreamsRunnerDSL {
       TracabGen5TF01 oldFrame = stateStore.get(key);
       HashMap<String, Object> oldObjectsMap = new HashMap<>();
       oldFrame.getObjects().forEach( object ->
-          oldObjectsMap.put(object.getId(), object)
+          oldObjectsMap.put(object.getPlayerId(), object)
       );
 
       List<Object> actualObjects = value.getObjects();
       // update acceleration and distance in actual object
       actualObjects.forEach( actualObject -> {
-        if (oldObjectsMap.containsKey(actualObject.getId())) {
+        if (oldObjectsMap.containsKey(actualObject.getPlayerId()) && actualObject.getType() != 3) {
          actualObject.setAccelleration(calcAcceleration(actualObject,
               value.getUtc(),
-              oldObjectsMap.get(actualObject.getId()),
+              oldObjectsMap.get(actualObject.getPlayerId()),
               oldFrame.getUtc()).orElse(null));
           actualObject.setDistance(getEuclidianDistance(actualObject,
               value.getUtc(),
-              oldObjectsMap.get(actualObject.getId()),
+              oldObjectsMap.get(actualObject.getPlayerId()),
               oldFrame.getUtc()).orElse(null));
         }
       });
