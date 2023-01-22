@@ -7,6 +7,10 @@ topic:
     name: tracabgen5_03_enriched
     replication-factor: 2
     partitions: 3
+  general-match-phase:
+    name: general_match_phase
+    replication-factor: 2
+    partitions: 3
 
 maxima:
   #v_max= velocity world record holder Arjen Robben with 37 km/h (10.277777778m/s)

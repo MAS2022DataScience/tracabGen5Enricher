@@ -1,8 +1,10 @@
 package com.mas2022datascience.tracabgen5enricher.processor;
 
+import com.mas2022datascience.avro.v1.GeneralMatchPhase;
 import com.mas2022datascience.avro.v1.Object;
 import com.mas2022datascience.avro.v1.TracabGen5TF01;
 import com.mas2022datascience.util.Time;
+import com.mas2022datascience.util.Zones;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,6 +17,8 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Transformer;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.state.KeyValueStore;
@@ -36,6 +40,7 @@ public class KafkaStreamsRunnerDSL {
 
   @Value(value = "${topic.tracab-02.name}")
   private String topicOut;
+  @Value(value = "${topic.general-match-phase.name}") private String topicGeneralMatchPhase;
 
   private static double VELOCITY_MAXIMAL_VALUE_STATIC;
 
@@ -53,6 +58,13 @@ public class KafkaStreamsRunnerDSL {
     final Serde<TracabGen5TF01> tracabGen5TF01Serde = new SpecificAvroSerde<>();
     tracabGen5TF01Serde.configure(serdeConfig, false); // `false` for record values
 
+    // match phase
+    final Serde<GeneralMatchPhase> generalMatchPhaseSerde = new SpecificAvroSerde<>();
+    generalMatchPhaseSerde.configure(serdeConfig, false); // `false` for record values
+    KStream<String, GeneralMatchPhase> streamPhase = kStreamBuilder.stream(topicGeneralMatchPhase,
+        Consumed.with(Serdes.String(), generalMatchPhaseSerde));
+    KTable<String, GeneralMatchPhase> phases = streamPhase.toTable(Materialized.as("phasesStore"));
+
     KStream<String, TracabGen5TF01> stream = kStreamBuilder.stream(topicIn,
         Consumed.with(Serdes.String(), tracabGen5TF01Serde));
 
@@ -66,7 +78,19 @@ public class KafkaStreamsRunnerDSL {
 
     // invoke the transformer
     KStream<String, TracabGen5TF01> transformedStream = stream
-        .transform(() -> myStateHandler, myStateStore.name());
+        .transform(() -> myStateHandler, myStateStore.name())
+        .leftJoin(phases, (newValue, phaseValue) -> {
+          for (Object object : newValue.getObjects()) {
+            if (object.getTeamId() != null) {
+              if (Zones.getZone(object.getX(), object.getY(),
+                  newValue.getTs(), object.getTeamId(), phaseValue) != -1) {
+                object.setZone(Zones.getZone(object.getX(), object.getY(),
+                    newValue.getTs(), object.getTeamId(), phaseValue));
+              }
+            }
+          }
+          return newValue;
+        });
 
     // peek into the stream and execute a println
     //transformedStream.peek((k,v) -> System.out.println("key: " + k + " - value:" + v));
