@@ -36,7 +36,7 @@ spring:
         default.value.serde: io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
         # This is the default: log, fail and stop processing records (stop stream)
         default.deserialization.exception.handler: org.apache.kafka.streams.errors.LogAndFailExceptionHandler
-        #auto-offset-reset: latest
+        auto-offset-reset: latest
         #compression-type: lz4 #this shows up in KafkaStreamsConfiguration
         #state.cleanup.delay.ms: 600000
     properties:
