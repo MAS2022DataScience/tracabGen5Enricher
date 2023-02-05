@@ -43,4 +43,26 @@ public class Topics {
         .config(TopicConfig.RETENTION_MS_CONFIG, "-1")
         .build();
   }
+
+  @Value(value = "${topic.general-match-phase.name}")
+  private String generalMatchPhaseTopic;
+  @Value(value = "${topic.general-match-phase.partitions}")
+  private Integer generalMatchPhasePartitions;
+  @Value(value = "${topic.general-match-phase.replication-factor}")
+  private Integer generalMatchPhaseReplicationFactor;
+
+  // creates the topic if not existent
+  @Bean
+  public NewTopic generalMatchPhase() {
+    return TopicBuilder.name(generalMatchPhaseTopic)
+        .partitions(generalMatchPhasePartitions)
+        .replicas(generalMatchPhaseReplicationFactor)
+        .config(TopicConfig.RETENTION_MS_CONFIG, "-1")
+        .config(TopicConfig.CLEANUP_POLICY_CONFIG, "compact")
+        .config(TopicConfig.DELETE_RETENTION_MS_CONFIG, "10")
+        .config(TopicConfig.SEGMENT_MS_CONFIG, "100")
+        .config(TopicConfig.MIN_CLEANABLE_DIRTY_RATIO_CONFIG, "0.01")
+        .config(TopicConfig.MIN_COMPACTION_LAG_MS_CONFIG, "0")
+        .build();
+  }
 }
