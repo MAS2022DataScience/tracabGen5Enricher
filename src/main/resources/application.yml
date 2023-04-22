@@ -23,8 +23,12 @@ spring:
 
   kafka:
     bootstrap-servers:
+       # run with docker-compose
       - kafka-1:19092
       - kafka-2:19093
+      # run without docker-compose
+#      - "${DATAPLATFORM_IP}:9092"
+#      - "${DATAPLATFORM_IP}:9093"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
@@ -57,6 +61,9 @@ spring:
         default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
         default.value.serde: io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
     properties:
+      # run with docker-compose
       schema.registry.url: "http://schema-registry-1:8081"
+      # run without docker-compose
+#      schema.registry.url: "http://${DATAPLATFORM_IP}:8081"
     listener:
       missing-topics-fatal: false
