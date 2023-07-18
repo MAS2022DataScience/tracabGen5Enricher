@@ -3,6 +3,7 @@ package com.mas2022datascience.tracabgen5enricher.processor;
 import com.mas2022datascience.avro.v1.GeneralMatchPhase;
 import com.mas2022datascience.avro.v1.Object;
 import com.mas2022datascience.avro.v1.TracabGen5TF01;
+import com.mas2022datascience.util.Distance;
 import com.mas2022datascience.util.Time;
 import com.mas2022datascience.util.Zones;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
@@ -41,13 +42,6 @@ public class KafkaStreamsRunnerDSL {
   @Value(value = "${topic.tracab-02.name}")
   private String topicOut;
   @Value(value = "${topic.general-match-phase.name}") private String topicGeneralMatchPhase;
-
-  private static double VELOCITY_MAXIMAL_VALUE_STATIC;
-
-  @Value("${maxima.velocity}")
-  public void setNameStatic(double velocityMaximalValue){
-    KafkaStreamsRunnerDSL.VELOCITY_MAXIMAL_VALUE_STATIC = velocityMaximalValue;
-  }
 
   @Bean
   public KStream<String, TracabGen5TF01> kStream(StreamsBuilder kStreamBuilder) {
@@ -139,19 +133,33 @@ public class KafkaStreamsRunnerDSL {
       );
 
       List<Object> actualObjects = value.getObjects();
-      // update acceleration and distance in actual object
-      actualObjects.forEach( actualObject -> {
-        if (oldObjectsMap.containsKey(actualObject.getPlayerId()) && actualObject.getType() != 3) {
-         actualObject.setAccelleration(calcAcceleration(actualObject,
+      // Type 7 is a referee
+      for (Object actualObject : actualObjects) {
+        if (oldObjectsMap.containsKey(actualObject.getPlayerId())
+            && actualObject.getType() != 3) {
+          // update acceleration and distance in actual object
+          actualObject.setAccelleration(calcAcceleration(actualObject,
               value.getUtc(),
               oldObjectsMap.get(actualObject.getPlayerId()),
-              oldFrame.getUtc()).orElse(null));
-          actualObject.setDistance(getEuclidianDistance(actualObject,
+              oldFrame.getUtc()).orElse(null)
+          );
+          // update distance to ball in actual object
+          actualObject.setDistance(Distance.getEuclidianDistance(actualObject,
               value.getUtc(),
               oldObjectsMap.get(actualObject.getPlayerId()),
-              oldFrame.getUtc()).orElse(null));
+              oldFrame.getUtc()).orElse(null)
+          );
+          // update distance to ball in actual object
+          Optional<Object> ballEObject = actualObjects.stream()
+              .filter(object -> object.getType() == 7).findFirst();
+          if (ballEObject.stream().findFirst().isPresent()) {
+            actualObject.setDistancePlayerBall(
+                Distance.getEuclidianDistanceNoChecks(actualObject,
+                    ballEObject.stream().findFirst().get())
+            );
+          }
         }
-      });
+      }
 
       stateStore.put(key, value);
       return new KeyValue<>(key, stateStore.get(key));
@@ -160,57 +168,6 @@ public class KafkaStreamsRunnerDSL {
 
     @Override
     public void close() { }
-  }
-
-  /**
-   * calculates the time difference in seconds
-   * @param actualUtc UTC time as a String
-   * @param oldUtc UTC time as a String
-   * @return time difference in seconds
-   */
-  private static float getTimeDifference(String actualUtc, String oldUtc) {
-    // represents the divisor that is needed to get s. Ex. ms to s means 1000 as 1000ms is 1s
-    float timeUnitDivisor = 1000;
-    return (Time.utcString2epocMs(actualUtc) - Time.utcString2epocMs(oldUtc))/timeUnitDivisor;
-  }
-
-  /**
-   * calculates the euclidian distance [m] between two points in a 3 dimensional space
-   *
-   * @param actualObject  of type Object
-   *      <Obj type="7" id="0" x="4111" y="2942" z="11" sampling="0" />
-   * @param actualUtc UTC time as a String
-   * @param oldObject     of type Object
-   *      <Obj type="7" id="0" x="4111" y="2942" z="11" sampling="0" />
-   * @param oldUtc UTC time as a String
-   * @return distance     of type double in meters
-   *                      between 2 points in a 3 dimensional space.
-   */
-  private static Optional<Double> getEuclidianDistance(Object actualObject, String actualUtc,
-      Object oldObject, String oldUtc) {
-    // represents the divisor that is needed to get m. Ex. cm to m means 100 as 100cm is 1m
-    int distanceUnitDivisor = 100;
-
-    double euclidianDistance = Math.sqrt(
-        Math.pow(oldObject.getX()-actualObject.getX(), 2)
-            + Math.pow(oldObject.getY()-actualObject.getY(), 2)
-            + Math.pow(oldObject.getZ()-actualObject.getZ(), 2)
-    ) / distanceUnitDivisor;
-    double timeDifference = getTimeDifference(actualUtc, oldUtc);
-
-    // if the distance is higher than 0, then an empty optional is returned
-    // v_max= velocity world record holder Arjen Robben mit 37 km/h (10.277777778m/s)
-    // s_max=v_max*timedifference=10,2m/s∗0.04s= 0.408m = 40.8cm
-    if (euclidianDistance < (VELOCITY_MAXIMAL_VALUE_STATIC * timeDifference)) {
-      return Optional.of(euclidianDistance);
-    } else {
-      // except the ball
-      if (actualObject.getType() == 7) {
-        return Optional.of(euclidianDistance);
-      } else {
-        return Optional.empty();
-      }
-    }
   }
 
   /**
@@ -226,7 +183,7 @@ public class KafkaStreamsRunnerDSL {
    */
   private static Optional<Double> calcAcceleration(Object actualObject, String actualUtc,
       Object oldObject, String oldUtc) {
-    double timeDifference = getTimeDifference(actualUtc, oldUtc);
+    double timeDifference = Time.getTimeDifference(actualUtc, oldUtc);
 
     if (oldObject.getVelocity() == null || actualObject.getVelocity() == null || timeDifference == 0 ) {
       return Optional.empty();
