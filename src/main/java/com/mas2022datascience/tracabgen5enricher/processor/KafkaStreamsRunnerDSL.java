@@ -4,6 +4,7 @@ import com.mas2022datascience.avro.v1.GeneralMatchPhase;
 import com.mas2022datascience.avro.v1.Object;
 import com.mas2022datascience.avro.v1.TracabGen5TF01;
 import com.mas2022datascience.util.Distance;
+import com.mas2022datascience.util.Vector;
 import com.mas2022datascience.util.Time;
 import com.mas2022datascience.util.Zones;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
@@ -133,30 +134,60 @@ public class KafkaStreamsRunnerDSL {
       );
 
       List<Object> actualObjects = value.getObjects();
-      // Type 7 is a referee
       for (Object actualObject : actualObjects) {
         if (oldObjectsMap.containsKey(actualObject.getPlayerId())
-            && actualObject.getType() != 3) {
+            && actualObject.getType() != 3) { // Type 3 is a referee
+
           // update acceleration and distance in actual object
           actualObject.setAccelleration(calcAcceleration(actualObject,
               value.getUtc(),
               oldObjectsMap.get(actualObject.getPlayerId()),
               oldFrame.getUtc()).orElse(null)
           );
+
           // update distance to ball in actual object
           actualObject.setDistance(Distance.getEuclidianDistance(actualObject,
               value.getUtc(),
               oldObjectsMap.get(actualObject.getPlayerId()),
               oldFrame.getUtc()).orElse(null)
           );
+
           // update distance to ball in actual object
-          Optional<Object> ballEObject = actualObjects.stream()
-              .filter(object -> object.getType() == 7).findFirst();
-          if (ballEObject.stream().findFirst().isPresent()) {
+          Optional<Object> actualBallObject = actualObjects.stream()
+              .filter(object -> object.getType() == 7).findFirst(); // Type 7 is the ball
+          if (actualBallObject.stream().findFirst().isPresent()) {
             actualObject.setDistancePlayerBall(
                 Distance.getEuclidianDistanceNoChecks(actualObject,
-                    ballEObject.stream().findFirst().get())
+                    actualBallObject.stream().findFirst().get())
             );
+          }
+
+          // update player vector in actual object
+          double[] playerVector = Vector.vector3dOf2Points(
+              new double[]{oldObjectsMap.get(actualObject.getPlayerId()).getX(),
+                  oldObjectsMap.get(actualObject.getPlayerId()).getY(),
+                  oldObjectsMap.get(actualObject.getPlayerId()).getZ()},
+              new double[]{actualObject.getX(), actualObject.getY(),
+                  actualObject.getZ()});
+          actualObject.setPlayerVectorX(playerVector[0]);
+          actualObject.setPlayerVectorY(playerVector[1]);
+          actualObject.setPlayerVectorZ(playerVector[2]);
+
+          // update projection of player vector in direction of ball vector in actual object
+          if (actualBallObject.stream().findFirst().isPresent() && oldObjectsMap.get("0") != null) {
+            double[] ballVector = Vector.vector3dOf2Points(
+                new double[]{actualBallObject.stream().findFirst().get().getX(),
+                    actualBallObject.stream().findFirst().get().getY(),
+                    actualBallObject.stream().findFirst().get().getZ()
+                },
+                new double[]{oldObjectsMap.get("0").getX(),
+                    oldObjectsMap.get("0").getY(),
+                    oldObjectsMap.get("0").getZ()
+                });
+            double[] projection = Vector.projectionOf3dVectorsOnAnother3dVector(playerVector, ballVector);
+            actualObject.setPlayerBallVectorX(projection[0]);
+            actualObject.setPlayerBallVectorY(projection[1]);
+            actualObject.setPlayerBallVectorZ(projection[2]);
           }
         }
       }
@@ -171,7 +202,7 @@ public class KafkaStreamsRunnerDSL {
   }
 
   /**
-   * calculates the acceleration between to points
+   * calculates the acceleration between two points
    * math: acceleration [m/s^2] = delta velocity [m/s]/ delta time [s] (linear acceleration)
    * @param actualObject of type Object
    * <Obj type="7" id="0" x="4111" y="2942" z="11" sampling="0" />
